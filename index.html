@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>GeoPhoto Map</title>
     <!-- Leaflet CSS -->
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin=""/>
     <style>
         :root {
             --sat: env(safe-area-inset-top);
@@ -27,7 +27,26 @@
             height: 100%;
             overflow: hidden;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
-            background-color: #000;
+            background-color: #f2f4f8;
+            color: #1c1c1e;
+        }
+
+        .fallback-notice {
+            position: absolute;
+            inset: 0;
+            display: none;
+            place-items: center;
+            text-align: center;
+            padding: 32px 20px;
+            background: linear-gradient(180deg, #f3f5f7 0%, #dfeafc 100%);
+            color: #1f2937;
+            font-size: 16px;
+            font-weight: 600;
+            z-index: 50;
+        }
+
+        .fallback-notice.visible {
+            display: grid;
         }
 
         #map {
@@ -272,6 +291,11 @@
 
     <div id="map"></div>
 
+    <div class="fallback-notice" id="fallbackNotice">
+        地図の読み込みに失敗しました。<br>
+        Web サーバーで開いているか確認してください。
+    </div>
+
     <div class="action-container">
         <button class="btn-ios secondary" id="btnCenter" title="現在地へ移動">
             🎯
@@ -305,33 +329,50 @@
     </div>
 
     <!-- Leaflet JS -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
     <script>
         let map;
         let userMarker = null;
         let currentPos = { lat: 35.6812, lng: 139.7671 };
         let capturedImageData = null;
         let photoPins = JSON.parse(localStorage.getItem('geophoto_pins') || '[]');
-        let markersLayer = L.layerGroup();
+        let markersLayer;
+
+        function showFallbackNotice() {
+            const notice = document.getElementById('fallbackNotice');
+            if (notice) notice.classList.add('visible');
+        }
+
+        function hideFallbackNotice() {
+            const notice = document.getElementById('fallbackNotice');
+            if (notice) notice.classList.remove('visible');
+        }
 
         document.addEventListener('DOMContentLoaded', () => {
+            if (!window.L) {
+                showFallbackNotice();
+                return;
+            }
+
             initMap();
             setupGeolocation();
             setupEventListeners();
         });
 
         function initMap() {
+            hideFallbackNotice();
             map = L.map('map', {
                 zoomControl: false,
-                attributionControl: false
+                attributionControl: true
             }).setView([currentPos.lat, currentPos.lng], 15);
 
-            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+            markersLayer = L.layerGroup().addTo(map);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
                 maxZoom: 19,
-                subdomains: 'abcd'
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             }).addTo(map);
 
-            markersLayer.addTo(map);
             renderPins();
         }
 

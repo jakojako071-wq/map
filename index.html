@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>GeoPhoto Map - iOS</title>
+    <title>GeoPhoto Map</title>
     <!-- Leaflet CSS -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
     <style>
@@ -39,7 +39,6 @@
             z-index: 1;
         }
 
-        /* iOS風フローティングヘッダー */
         .header-bar {
             position: absolute;
             top: calc(12px + var(--sat));
@@ -72,7 +71,6 @@
             gap: 6px;
         }
 
-        /* 操作ボタングループ */
         .action-container {
             position: absolute;
             bottom: calc(34px + var(--sab));
@@ -119,7 +117,6 @@
             padding: 0;
         }
 
-        /* モーダルシート (iOSカードスタイル) */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -243,12 +240,10 @@
             color: #1c1c1e;
         }
 
-        /* 隠しファイルインプット (カメラ起動用) */
         #cameraInput {
             display: none;
         }
 
-        /* カスタムマップピン */
         .custom-pin {
             background: #fff;
             border-radius: 50%;
@@ -269,17 +264,14 @@
 </head>
 <body>
 
-    <!-- ヘルパーヘッダー -->
     <div class="header-bar">
         <div class="app-title glass-panel">
             📍 <span>GeoPhoto Map</span>
         </div>
     </div>
 
-    <!-- マップ表示領域 -->
     <div id="map"></div>
 
-    <!-- フッター操作ボタン -->
     <div class="action-container">
         <button class="btn-ios secondary" id="btnCenter" title="現在地へ移動">
             🎯
@@ -289,10 +281,8 @@
         </button>
     </div>
 
-    <!-- カメラ起動用の隠しinput -->
     <input type="file" id="cameraInput" accept="image/*" capture="environment">
 
-    <!-- 写真詳細・保存モーダル -->
     <div class="modal-overlay" id="photoModal">
         <div class="modal-sheet">
             <div class="sheet-indicator"></div>
@@ -317,15 +307,13 @@
     <!-- Leaflet JS -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script>
-        // 状態管理
         let map;
         let userMarker = null;
-        let currentPos = { lat: 35.6812, lng: 139.7671 }; // 初期値（東京駅付近）
+        let currentPos = { lat: 35.6812, lng: 139.7671 };
         let capturedImageData = null;
         let photoPins = JSON.parse(localStorage.getItem('geophoto_pins') || '[]');
         let markersLayer = L.layerGroup();
 
-        // 初期化
         document.addEventListener('DOMContentLoaded', () => {
             initMap();
             setupGeolocation();
@@ -333,13 +321,11 @@
         });
 
         function initMap() {
-            // Leafletマップの初期化
             map = L.map('map', {
                 zoomControl: false,
                 attributionControl: false
             }).setView([currentPos.lat, currentPos.lng], 15);
 
-            // 美しいCartoDBタイルを使用
             L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
                 maxZoom: 19,
                 subdomains: 'abcd'
@@ -349,24 +335,18 @@
             renderPins();
         }
 
-        // 現在地の取得と追跡
         function setupGeolocation() {
             if ('geolocation' in navigator) {
                 navigator.geolocation.watchPosition(
                     (position) => {
                         currentPos.lat = position.coords.latitude;
                         currentPos.lng = position.coords.longitude;
-
                         updateUserMarker(currentPos.lat, currentPos.lng);
                     },
                     (error) => {
                         console.warn('位置情報の取得に失敗しました:', error.message);
                     },
-                    {
-                        enableHighAccuracy: true,
-                        maximumAge: 10000,
-                        timeout: 10000
-                    }
+                    { enableHighAccuracy: true, maximumAge: 10000, timeout: 10000 }
                 );
             }
         }
@@ -385,7 +365,6 @@
             }
         }
 
-        // イベントリスナー設定
         function setupEventListeners() {
             const btnCamera = document.getElementById('btnCamera');
             const cameraInput = document.getElementById('cameraInput');
@@ -394,19 +373,16 @@
             const btnModalSave = document.getElementById('btnModalSave');
             const modalOverlay = document.getElementById('photoModal');
 
-            // カメラ起動ボタン
             btnCamera.addEventListener('click', () => {
                 cameraInput.click();
             });
 
-            // 写真が撮影・選択されたとき
             cameraInput.addEventListener('change', (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
 
                 const reader = new FileReader();
                 reader.onload = (event) => {
-                    // 画像のプレビューとモーダル表示
                     compressImage(event.target.result, 800, (compressedData) => {
                         capturedImageData = compressedData;
                         document.getElementById('modalImage').src = compressedData;
@@ -418,21 +394,17 @@
                     });
                 };
                 reader.readAsDataURL(file);
-                // 同じファイルを連続で選択できるようにクリア
                 cameraInput.value = '';
             });
 
-            // 現在地へ移動ボタン
             btnCenter.addEventListener('click', () => {
                 map.setView([currentPos.lat, currentPos.lng], 16, { animate: true });
             });
 
-            // モーダルキャンセル
             btnModalCancel.addEventListener('click', () => {
                 modalOverlay.classList.remove('active');
             });
 
-            // 保存ボタン
             btnModalSave.addEventListener('click', () => {
                 const memo = document.getElementById('photoMemo').value.trim() || '無題の写真';
                 const newPin = {
@@ -449,13 +421,10 @@
                 
                 renderPins();
                 modalOverlay.classList.remove('active');
-                
-                // ピンの位置へマップを移動
                 map.setView([newPin.lat, newPin.lng], 16, { animate: true });
             });
         }
 
-        // iPhoneのメモリ対策として画像をリサイズ・圧縮する関数
         function compressImage(base64Str, maxWidth, callback) {
             const img = new Image();
             img.src = base64Str;
@@ -477,7 +446,6 @@
             };
         }
 
-        // マップ上のピンを描画
         function renderPins() {
             markersLayer.clearLayers();
 
@@ -491,7 +459,6 @@
 
                 const marker = L.marker([pin.lat, pin.lng], { icon: customIcon });
 
-                // ピンタップ時のポップアップ
                 const popupContent = `
                     <div style="text-align:center; min-width:160px; font-family:-apple-system,sans-serif;">
                         <img src="${pin.image}" style="width:100%; height:120px; object-fit:cover; border-radius:8px; margin-bottom:6px;">
@@ -506,7 +473,6 @@
             });
         }
 
-        // ピン削除関数
         window.deletePin = function(id) {
             if (confirm('この写真ピンを削除しますか？')) {
                 photoPins = photoPins.filter(p => p.id !== id);

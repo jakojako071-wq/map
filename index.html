@@ -1,0 +1,533 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>GeoPhoto Map - iOS</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        :root {
+            --sat: env(safe-area-inset-top);
+            --sab: env(safe-area-inset-bottom);
+            --primary-color: #007aff;
+            --bg-glass: rgba(255, 255, 255, 0.85);
+            --border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Icons", "Helvetica Neue", Helvetica, Arial, sans-serif;
+            background-color: #000;
+        }
+
+        #map {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* iOS風フローティングヘッダー */
+        .header-bar {
+            position: absolute;
+            top: calc(12px + var(--sat));
+            left: 16px;
+            right: 16px;
+            z-index: 10;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            pointer-events: none;
+        }
+
+        .glass-panel {
+            background: var(--bg-glass);
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.12);
+            pointer-events: auto;
+        }
+
+        .app-title {
+            padding: 10px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 15px;
+            color: #1c1c1e;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        /* 操作ボタングループ */
+        .action-container {
+            position: absolute;
+            bottom: calc(34px + var(--sab));
+            left: 16px;
+            right: 16px;
+            z-index: 10;
+            display: flex;
+            gap: 12px;
+            pointer-events: none;
+        }
+
+        .btn-ios {
+            flex: 1;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 16px;
+            padding: 16px;
+            font-size: 16px;
+            font-weight: 600;
+            box-shadow: 0 4px 16px rgba(0, 122, 255, 0.3);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            cursor: pointer;
+            pointer-events: auto;
+            transition: transform 0.1s ease, opacity 0.1s ease;
+        }
+
+        .btn-ios:active {
+            transform: scale(0.96);
+            opacity: 0.9;
+        }
+
+        .btn-ios.secondary {
+            background: var(--bg-glass);
+            color: #1c1c1e;
+            -webkit-backdrop-filter: blur(20px);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--border-color);
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
+            flex: 0 0 54px;
+            padding: 0;
+        }
+
+        /* モーダルシート (iOSカードスタイル) */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.4);
+            -webkit-backdrop-filter: blur(4px);
+            backdrop-filter: blur(4px);
+            z-index: 100;
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.3s ease;
+        }
+
+        .modal-overlay.active {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .modal-sheet {
+            width: 100%;
+            max-width: 500px;
+            max-height: 85vh;
+            background: #f2f2f7;
+            border-top-left-radius: 24px;
+            border-top-right-radius: 24px;
+            padding: 24px 20px calc(34px + var(--sab)) 20px;
+            box-shadow: 0 -10px 40px rgba(0, 0, 0, 0.2);
+            transform: translateY(100%);
+            transition: transform 0.35s cubic-bezier(0.1, 1, 0.1, 1);
+            overflow-y: auto;
+        }
+
+        .modal-overlay.active .modal-sheet {
+            transform: translateY(0);
+        }
+
+        .sheet-indicator {
+            width: 36px;
+            height: 5px;
+            background: #c7c7cc;
+            border-radius: 3px;
+            margin: 0 auto 16px auto;
+        }
+
+        .photo-preview-container {
+            width: 100%;
+            height: 280px;
+            border-radius: 16px;
+            overflow: hidden;
+            background: #e5e5ea;
+            margin-bottom: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+
+        .photo-preview-container img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .input-group {
+            margin-bottom: 16px;
+        }
+
+        .input-group label {
+            display: block;
+            font-size: 13px;
+            font-weight: 600;
+            color: #8e8e93;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .input-group input[type="text"] {
+            width: 100%;
+            padding: 12px 16px;
+            border-radius: 12px;
+            border: 1px solid #d1d1d6;
+            background: #fff;
+            font-size: 16px;
+            color: #1c1c1e;
+            outline: none;
+        }
+
+        .meta-info {
+            font-size: 13px;
+            color: #8e8e93;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .btn-modal {
+            flex: 1;
+            padding: 14px;
+            border-radius: 14px;
+            font-size: 16px;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-modal.primary {
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .btn-modal.cancel {
+            background: #e5e5ea;
+            color: #1c1c1e;
+        }
+
+        /* 隠しファイルインプット (カメラ起動用) */
+        #cameraInput {
+            display: none;
+        }
+
+        /* カスタムマップピン */
+        .custom-pin {
+            background: #fff;
+            border-radius: 50%;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            border: 2px solid #fff;
+            transition: transform 0.2s;
+        }
+        .custom-pin:hover {
+            transform: scale(1.1);
+        }
+        .custom-pin img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- ヘルパーヘッダー -->
+    <div class="header-bar">
+        <div class="app-title glass-panel">
+            📍 <span>GeoPhoto Map</span>
+        </div>
+    </div>
+
+    <!-- マップ表示領域 -->
+    <div id="map"></div>
+
+    <!-- フッター操作ボタン -->
+    <div class="action-container">
+        <button class="btn-ios secondary" id="btnCenter" title="現在地へ移動">
+            🎯
+        </button>
+        <button class="btn-ios" id="btnCamera">
+            📷 写真を撮ってピン留め
+        </button>
+    </div>
+
+    <!-- カメラ起動用の隠しinput -->
+    <input type="file" id="cameraInput" accept="image/*" capture="environment">
+
+    <!-- 写真詳細・保存モーダル -->
+    <div class="modal-overlay" id="photoModal">
+        <div class="modal-sheet">
+            <div class="sheet-indicator"></div>
+            <div class="photo-preview-container">
+                <img id="modalImage" src="" alt="撮影画像">
+            </div>
+            <div class="input-group">
+                <label for="photoMemo">メモ・タイトル</label>
+                <input type="text" id="photoMemo" placeholder="例: 綺麗な景色、お店の名前など">
+            </div>
+            <div class="meta-info">
+                <span id="modalCoords">緯度経度: --</span>
+                <span id="modalDate">日時: --</span>
+            </div>
+            <div class="modal-actions">
+                <button class="btn-modal cancel" id="btnModalCancel">キャンセル</button>
+                <button class="btn-modal primary" id="btnModalSave">マップに保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script>
+        // 状態管理
+        let map;
+        let userMarker = null;
+        let currentPos = { lat: 35.6812, lng: 139.7671 }; // 初期値（東京駅付近）
+        let capturedImageData = null;
+        let photoPins = JSON.parse(localStorage.getItem('geophoto_pins') || '[]');
+        let markersLayer = L.layerGroup();
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', () => {
+            initMap();
+            setupGeolocation();
+            setupEventListeners();
+        });
+
+        function initMap() {
+            // Leafletマップの初期化
+            map = L.map('map', {
+                zoomControl: false,
+                attributionControl: false
+            }).setView([currentPos.lat, currentPos.lng], 15);
+
+            // 美しいCartoDBタイルを使用
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+                maxZoom: 19,
+                subdomains: 'abcd'
+            }).addTo(map);
+
+            markersLayer.addTo(map);
+            renderPins();
+        }
+
+        // 現在地の取得と追跡
+        function setupGeolocation() {
+            if ('geolocation' in navigator) {
+                navigator.geolocation.watchPosition(
+                    (position) => {
+                        currentPos.lat = position.coords.latitude;
+                        currentPos.lng = position.coords.longitude;
+
+                        updateUserMarker(currentPos.lat, currentPos.lng);
+                    },
+                    (error) => {
+                        console.warn('位置情報の取得に失敗しました:', error.message);
+                    },
+                    {
+                        enableHighAccuracy: true,
+                        maximumAge: 10000,
+                        timeout: 10000
+                    }
+                );
+            }
+        }
+
+        function updateUserMarker(lat, lng) {
+            if (!userMarker) {
+                const userIcon = L.divIcon({
+                    className: 'user-location-pin',
+                    html: '<div style="width: 18px; height: 18px; background: #007aff; border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 10px rgba(0,122,255,0.6);"></div>',
+                    iconSize: [18, 18],
+                    iconAnchor: [9, 9]
+                });
+                userMarker = L.marker([lat, lng], { icon: userIcon }).addTo(map);
+            } else {
+                userMarker.setLatLng([lat, lng]);
+            }
+        }
+
+        // イベントリスナー設定
+        function setupEventListeners() {
+            const btnCamera = document.getElementById('btnCamera');
+            const cameraInput = document.getElementById('cameraInput');
+            const btnCenter = document.getElementById('btnCenter');
+            const btnModalCancel = document.getElementById('btnModalCancel');
+            const btnModalSave = document.getElementById('btnModalSave');
+            const modalOverlay = document.getElementById('photoModal');
+
+            // カメラ起動ボタン
+            btnCamera.addEventListener('click', () => {
+                cameraInput.click();
+            });
+
+            // 写真が撮影・選択されたとき
+            cameraInput.addEventListener('change', (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    // 画像のプレビューとモーダル表示
+                    compressImage(event.target.result, 800, (compressedData) => {
+                        capturedImageData = compressedData;
+                        document.getElementById('modalImage').src = compressedData;
+                        document.getElementById('photoMemo').value = '';
+                        document.getElementById('modalCoords').textContent = `緯度: ${currentPos.lat.toFixed(4)}, 経度: ${currentPos.lng.toFixed(4)}`;
+                        document.getElementById('modalDate').textContent = `日時: ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}`;
+                        
+                        modalOverlay.classList.add('active');
+                    });
+                };
+                reader.readAsDataURL(file);
+                // 同じファイルを連続で選択できるようにクリア
+                cameraInput.value = '';
+            });
+
+            // 現在地へ移動ボタン
+            btnCenter.addEventListener('click', () => {
+                map.setView([currentPos.lat, currentPos.lng], 16, { animate: true });
+            });
+
+            // モーダルキャンセル
+            btnModalCancel.addEventListener('click', () => {
+                modalOverlay.classList.remove('active');
+            });
+
+            // 保存ボタン
+            btnModalSave.addEventListener('click', () => {
+                const memo = document.getElementById('photoMemo').value.trim() || '無題の写真';
+                const newPin = {
+                    id: Date.now(),
+                    lat: currentPos.lat,
+                    lng: currentPos.lng,
+                    image: capturedImageData,
+                    memo: memo,
+                    date: new Date().toLocaleDateString()
+                };
+
+                photoPins.push(newPin);
+                localStorage.setItem('geophoto_pins', JSON.stringify(photoPins));
+                
+                renderPins();
+                modalOverlay.classList.remove('active');
+                
+                // ピンの位置へマップを移動
+                map.setView([newPin.lat, newPin.lng], 16, { animate: true });
+            });
+        }
+
+        // iPhoneのメモリ対策として画像をリサイズ・圧縮する関数
+        function compressImage(base64Str, maxWidth, callback) {
+            const img = new Image();
+            img.src = base64Str;
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                let width = img.width;
+                let height = img.height;
+
+                if (width > maxWidth) {
+                    height = Math.round((height * maxWidth) / width);
+                    width = maxWidth;
+                }
+
+                canvas.width = width;
+                canvas.height = height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+                callback(canvas.toDataURL('image/jpeg', 0.75));
+            };
+        }
+
+        // マップ上のピンを描画
+        function renderPins() {
+            markersLayer.clearLayers();
+
+            photoPins.forEach(pin => {
+                const customIcon = L.divIcon({
+                    className: 'custom-pin',
+                    html: `<img src="${pin.image}" style="width:100%; height:100%;">`,
+                    iconSize: [44, 44],
+                    iconAnchor: [22, 22]
+                });
+
+                const marker = L.marker([pin.lat, pin.lng], { icon: customIcon });
+
+                // ピンタップ時のポップアップ
+                const popupContent = `
+                    <div style="text-align:center; min-width:160px; font-family:-apple-system,sans-serif;">
+                        <img src="${pin.image}" style="width:100%; height:120px; object-fit:cover; border-radius:8px; margin-bottom:6px;">
+                        <div style="font-weight:600; font-size:14px; color:#1c1c1e; margin-bottom:4px;">${escapeHtml(pin.memo)}</div>
+                        <div style="font-size:11px; color:#8e8e93; margin-bottom:8px;">${pin.date}</div>
+                        <button onclick="deletePin(${pin.id})" style="background:#ff3b30; color:white; border:none; border-radius:6px; padding:4px 10px; font-size:11px; font-weight:600; cursor:pointer;">削除</button>
+                    </div>
+                `;
+
+                marker.bindPopup(popupContent, { maxWidth: 220 });
+                markersLayer.addLayer(marker);
+            });
+        }
+
+        // ピン削除関数
+        window.deletePin = function(id) {
+            if (confirm('この写真ピンを削除しますか？')) {
+                photoPins = photoPins.filter(p => p.id !== id);
+                localStorage.setItem('geophoto_pins', JSON.stringify(photoPins));
+                map.closePopup();
+                renderPins();
+            }
+        };
+
+        function escapeHtml(str) {
+            return str.replace(/[&'`<> "]/g, (match) => {
+                return {
+                    '&': '&amp;',
+                    "'": '&#x27;',
+                    '`': '&#x60;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                }[match];
+            });
+        }
+    </script>
+</body>
+</html>
